@@ -17,31 +17,28 @@ noise_level = 0.5
 signal = eyes + np.random.randn(*eyes.shape)*noise_level
 
 # Plot the signal and ground thruth
-plt.plot(ts, eyes[:,0])
 plt.plot(ts, signal[:,0], '.')
 
 
 # Get the regression
 # Estimates noise automatically.
 # If the noise estimate seems wrong, it can be specified
-# by calling fit_gaze(ts, signal, structural_error=my_noise_level, optimize_error=False).
+# by calling
+# reconstruction = fit_gaze(ts, signal, structural_error=noise_level, optimize_error=False).
 reconstruction = fit_gaze(ts, signal)
 
 # Check noise estimation accuracy
 est_noise = np.mean(np.std(reconstruction(ts) - signal, axis=0))
 plt.title("True noise %f, estimated noise %f"%(noise_level, est_noise,))
 
-# Plot the reconstruction
-plt.plot(ts, reconstruction(ts)[:,0])
+plt.plot(ts, eyes[:,0])
 
+# Plot the reconstruction
 # We can also split the independent segments
 # This is what one probably wants for saccade/fixation/pursuit analysis
-# NOTE: The segments can look a bit weird as they are overlapping,
-# in the segmentation there are actually two values for the midpoints.
-# The reconstruction averages those
 for segment in reconstruction.segments:
     t = np.array(segment.t) # Start and end times of the segment
     x = np.array(segment.x) # Start and end points of the segment
-    plt.plot(t, x[:,0], 'ro-', alpha=0.3)
+    plt.plot(t, x[:,0], 'ro-', alpha=0.5)
 
 plt.show()
