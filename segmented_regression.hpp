@@ -1,4 +1,5 @@
 #include <vector>
+#include <unordered_set>
 #include <list>
 #include <tuple>
 #include <forward_list>
@@ -94,11 +95,13 @@ struct SharedList {
    Assumes that velocity between segments can be
    "infinite" (ie start of the segment doesn't in any way depend from the
    previous). Not very realistic, but statistically a simple case.
-*/ 
+*/
+/*
 template <class Vector, class Model>
 struct NslrHypothesis {
 	uint n = 0;
 	double t = 0.0;
+	double ws = 0.0;
 	double mean_t = 0.0;
 	double ss_t = 0.0;
 	Vector mean_x;
@@ -141,26 +144,28 @@ struct NslrHypothesis {
 	}
 	
 	
-	inline void measurement(double dt, double* position) {
-		measurement(dt, Map<Vector>(position));
+	inline void measurement(double dt, double* position, double w=1.0) {
+		measurement(dt, Map<Vector>(position), w);
 	}
 	
-	inline void measurement(double dt, Ref<Vector> position) {
+	inline void measurement(double dt, Ref<Vector> position, double w=1.0) {
 		n++;
+		ws += w;
+		double wsinv = w/ws;
 		double ninv = 1.0/n;
 		auto delta_x = (position - mean_x).eval();
-		mean_x += (delta_x*ninv);
-		ss_x += delta_x.cwiseProduct(position-mean_x);
+		mean_x += (delta_x*wsinv);
+		ss_x += w*delta_x.cwiseProduct(position-mean_x);
 		
 		t += dt;
 		auto delta_t = t - mean_t;
-		mean_t += delta_t*ninv;
-		ss_t += delta_t*(t - mean_t);
+		mean_t += delta_t*wsinv;
+		ss_t += w*delta_t*(t - mean_t);
 
-		
 		// Calculate the regression SS incrementally
 		// (for both independent axes simultaneously)
-		ss_xt += ((n-1)*ninv)*delta_x*delta_t;
+		//ss_xt += ((n-1)*ninv)*delta_x*delta_t;
+		ss_xt += ((ws - w)*wsinv)*delta_x*delta_t;
 		
 		auto new_residual_ss = (ss_x - ss_xt.pow(2)/ss_t).eval();
 		if(ss_t == 0) new_residual_ss = ss_x; // Sometimes zero by zero is zero
@@ -173,7 +178,130 @@ struct NslrHypothesis {
 	inline double likelihood() const {
 		return _total_likelihood;
 	}
+
+	Vector predict(double nt) {
+		if(ss_t == 0) {
+			return mean_x;
+		}
+		auto slope = ss_xt/ss_t;
+		auto intercept = mean_x - slope*mean_t;
+		return nt*slope + intercept;
+	}
+};*/
+
+
+template <class Vector, class Model>
+struct NslrHypothesis {
+	//(Stt*Sww*Sxx - Stt*Swx**2 - Stw**2*Sxx + 2*Stw*Stx*Swx - Stx**2*Sww)/(Stt*Sww - Stw**2)
+	double t = 0.0;
+
+	double Stt = 0.0;
+	double Sww = 0.0;
+	Vector Sxx;
+	Vector Swx;
+	double Stw = 0.0;
+	Vector Stx;
+	
+	uint n = 0;
+	
+	Vector residual_ss;
+	double _total_likelihood = 0.0;
+
+	bool has_parent;
+	Vector startpoint;
+
+	// This should probably be const Model* const, but STL tears a new one
+	// if we declare it so, as it will kill the move constructor.
+	// Actually it should be a reference, but STL really really doesn't
+	// like that. This is one horrible language.
+	const Model* model;
+	SharedList<uint> splits;
+	//double segment_lik = 0.0;
+	
+	void __initialize_variables() {
+		// C++ constructors suck.
+		Sxx.setZero();
+		Swx.setZero();
+		Stx.setZero();
+		residual_ss.setZero();
+	}
+	
+	NslrHypothesis(const Model* model, NslrHypothesis& parent, double dt, uint i)
+		:model(model), splits(parent.splits, i)
+	{
+		__initialize_variables();
+		startpoint = parent.predict(parent.t);
+		has_parent = true;
+		_total_likelihood = parent.likelihood();
+		_total_likelihood += model->split_likelihood(dt);
+	}
+	
+	NslrHypothesis(const Model* model)
+		:model(model)
+	{
+		//splits = decltype(splits)(splits, 0);
+		__initialize_variables();
+		has_parent = false;
+	}
+	
+	
+	inline void measurement(double dt, double* position, double w=1.0) {
+		measurement(dt, Map<Vector>(position), w);
+	}
+	
+	inline void measurement(double dt, Ref<Vector> position, double w=1.0) {
+		//(Stt*Sww*Sxx - Stt*Swx**2 - Stw**2*Sxx + 2*Stw*Stx*Swx - Stx**2*Sww)/(Stt*Sww - Stw**2)
+		// Stt, Sww, Sxx, Swx, Stw, Stx
+		n += 1;
+		
+		t += dt;
+		Vector x = w*position;
+		double t_ = w*t;
+
+		Stt += t_*t_;
+		Sww += w*w;
+		Sxx += x*x;
+		Swx += w*x;
+		Stw += t_*w;
+		Stx += t_*x;
+		
+		Vector b;
+		if(has_parent) {
+			b = startpoint;
+		} else {
+			b = (Stt*Swx - Stw*Stx)/(Stt*Sww - Stw*Stw);
+		}
+		Vector a = (Stx - b*Stw)/Stt;
+		//Vector a = (-Stw*Swx + Stx*Sww)/denom;
+		Vector new_residual_ss = a*a*Stt + 2*a*b*Stw - 2*a*Stx + b*b*Sww - 2*b*Swx + Sxx;
+		//Vector new_residual_ss =
+		//	(Stt*Sww*Sxx - Stt*Swx.pow(2) - Stw*Stw*Sxx + 2*Stw*Stx*Swx - Stx.pow(2)*Sww)/(Stt*Sww - Stw*Stw);
+		//	//(Mtt*Mww*Mxx - Mtt*Mwx.pow(2) - Mtw*Mtw*Mxx + 2*Mtw*Mtx*Mwx - Mtx.pow(2)*Mww)/(Mtt*Mww - Mtw**2)
+		
+		//auto new_residual_ss = (ss_x - ss_xt.pow(2)/ss_t).eval();
+		if(n < 2) new_residual_ss.setZero(); // Sometimes zero by zero is zero
+		
+		_total_likelihood += ((residual_ss - new_residual_ss)*model->resid_normer).sum() + model->seg_normer;
+		residual_ss = new_residual_ss;
+		
+	}
+
+	inline double likelihood() const {
+		return _total_likelihood;
+	}
+
+	Vector predict(double nt) {
+		Vector b;
+		if(has_parent) {
+			b = startpoint;
+		} else {
+			b = (Stt*Swx - Stw*Stx)/(Stt*Sww - Stw*Stw);
+		}
+		Vector a = (Stx - b*Stw)/Stt;
+		return nt*a + b;
+	}
 };
+
 
 typedef std::function<double(double)> SplitLikelihood;
 
@@ -187,6 +315,51 @@ SplitLikelihood penalized_exponential_split(double penalty) {
 	return [=](double dt) {
 		return log(dt) - penalty;
 	};
+}
+
+SplitLikelihood constant_penalty_split(double penalty) {
+	return [=](double dt) {
+		return -penalty;
+	};
+}
+
+/*
+======================================================================================
+                         coef    std err          t      P>|t|      [0.025      0.975]
+--------------------------------------------------------------------------------------
+Intercept             -2.8614      0.520     -5.504      0.000      -3.882      -1.841
+log(sampling_rate)    -1.0397      0.095    -10.953      0.000      -1.226      -0.853
+I(1 / noise_level)     0.4993      0.013     39.175      0.000       0.474       0.524
+log(max_distance)      0.5149      0.064      8.030      0.000       0.389       0.641
+log(max_speed)         0.1118      0.062      1.801      0.072      -0.010       0.234
+log(max_duration)     -0.9375      0.078    -11.962      0.000      -1.091      -0.784
+======================================================================================
+*/ 
+SplitLikelihood gaze_split(
+		double noise_std,
+		double saccade_amplitude=3.0,
+		double slow_phase_duration=0.3,
+		double slow_phase_speed=5.0) {
+	using std::log; using std::exp;
+	/*double pinc =
+		1.2*std::log(noise_std) +
+		-0.6*std::log(saccade_amplitude/2.0) +
+		1.0*std::log(slow_phase_duration/2.0) +
+		-0.15*std::log(slow_phase_speed/2.0) +
+		2.3;
+	*/
+	double logit_pinc = 
+		0.5*(1.0/noise_std) +
+		0.5*log(saccade_amplitude*2) +
+		-1.0*log(slow_phase_duration*2) +
+		0.1*log(slow_phase_speed*2) +
+		-3.0;
+	return [=](double dt) {
+		double lp = logit_pinc + -1.0*log(1/dt);
+		return log(1/(1 + exp(-lp)));
+		//return -(1.0*std::log(1/dt) + pinc);
+	};
+
 }
 
 template <uint ndim>
@@ -214,7 +387,8 @@ struct Nslr {
 		seg_normer = (1.0/(noise_std*std::sqrt(2*M_PI))).log().sum();
 		resid_normer = 1.0/(2*noise_std.pow(2));
 		
-		split_compensation = (noise_std.pow(2)*resid_normer).sum() + seg_normer;
+		//split_compensation = (noise_std.pow(2)*resid_normer).sum() + seg_normer;
+		split_compensation = 0.0;
         }
 
 	auto split_likelihood(double dt) const {
@@ -228,13 +402,17 @@ struct Nslr {
 
 	Hypothesis& get_winner() {
 		static const auto likcmp = [](const Hypothesis& a, const Hypothesis& b) {
-			if(a.n < 2 && b.n < 2) return true; 
-			if(a.n >= 2 && b.n < 2) return false; 
-			if(a.n < 2 && b.n >= 2) return true; 
+			//if(a.n < 2 && b.n < 2) return true; 
+			//if(a.n >= 2 && b.n < 2) return false; 
+			//if(a.n < 2 && b.n >= 2) return true; 
 			return a.likelihood() < b.likelihood();
 		};
 		
 		return *std::max_element(hypotheses.begin(), hypotheses.end(), likcmp);
+	}
+
+	auto winner_likelihood() {
+		return get_winner().likelihood();
 	}
 
 	void measurement(double dt, Ref<Vector> measurement) {
@@ -253,18 +431,18 @@ struct Nslr {
 		auto& winner = get_winner();
 		hypotheses.emplace_back(this, winner, dt, i);
 		auto& new_hypo = hypotheses.back();
-		new_hypo.measurement(dt, measurement);
+		//new_hypo.measurement(dt, measurement);
+		Vector pred = winner.predict(winner.t);
+		//new_hypo.measurement(0.0, pred, 1e6);
 		auto worst_survivor = new_hypo.likelihood();
 		
 		const auto no_chance = [&](const Hypothesis& hypo) {
-			//if(hypo.n < 2) return false;
 			if(&hypo == &winner) {
 				return false;
 			}
 			return hypo.likelihood() <= worst_survivor;
 		};
 		
-			
 		auto erased_start = std::remove_if(hypotheses.begin(), hypotheses.end() - 1, no_chance);
 		hypotheses.erase(erased_start, hypotheses.end() - 1);
 		
@@ -462,14 +640,14 @@ auto fit_2d_linear_segments(Timestamps ts, Points2d xs, Splits splits) {
 	for(size_t i = 0; i < splits.size() - 1; ++i) {
 		segments.push_back(add_segment(i, splits[i], splits[i+1]));
 	}
-	return HackSegmentation<Segment<Nslr2d::Vector>>(ts, segments);
+	return Segmentation<Segment<Nslr2d::Vector>>(ts, segments);
 	//return std::make_tuple(sts, sxs);
 
 }
 
-template<typename T>
+template<typename Tt, typename Tx>
 struct TridiagonalSolver {
-	std::list<std::tuple<T, T>> BG;
+	std::list<std::tuple<Tx, Tt>> BG;
 	//B;
 	//std::list<T> G;
 
@@ -477,24 +655,28 @@ struct TridiagonalSolver {
 		BG.emplace_back(0.0, 0.0);
 	}
 
-	void add_row(T p0, T p1, T p2, T y) {
-		T b, g;
+	void add_row(Tt t0, Tt t1, Tt t2, Tx x) {
+		/*std::cout
+			<< t1 << '\t'
+			<< t1 << '\t'
+			<< t2
+			<< std::endl;*/
+		Tx b; Tt g;
 		std::tie(b, g) = BG.back();
 		//auto b = B.back();
 		//auto g = G.back();
-		auto denom = p0*g + p1;
-		BG.emplace_back((y - p0*b)/denom, -p2/denom);
+		auto denom = t0*g + t1;
+		BG.emplace_back((x - t0*b)/denom, -t2/denom);
 	}
 
-	std::list<T> solve() {
-		T x(0.0);
-		std::list<T> X;
+	std::list<Tx> solve() {
+		Tx x(0.0);
+		std::list<Tx> X;
 		auto first = BG.cbegin();
-		auto bg = --BG.cend();
-		while(bg != first) {
-			T b, g;
-			std::tie(b, g) = (*bg--);
-			x = (g)*x + b;
+		for(auto bg = --BG.cend(); bg != first; --bg) {
+			Tx b; Tt g;
+			std::tie(b, g) = *bg;
+			x = g*x + b;
 			X.emplace_front(x);
 		}
 
@@ -506,13 +688,14 @@ struct TridiagonalSolver {
 
 auto fit_2d_segments_cont(Timestamps ts, Points2d xs, Splits splits) {
 	using Point = Nslr2d::Vector;
-	TridiagonalSolver<Array<double, 1, 2>> solver;
+	TridiagonalSolver<double, Array<double, 1, 2>> solver;
 	auto n_segments = splits.size() - 1;
-	Point Mmw0(0.0);
+	double Mmw0=0.0, Mww0=0.0, Mmw1=0.0, Mmm1=0.0, p0=0.0, p1=0.0, p2=0.0;
+	//double Mmm0, Mww1 = 0.0;
 	Point Mxw0(0.0);
 	Point Mxm0(0.0);
-	Point Mww0(0.0);
-	Point Mmm0(0.0);
+	Point y;
+
 	for(size_t i = 0; i < n_segments; ++i) {
 		auto start = splits[i];
 		auto end = splits[i+1];
@@ -527,42 +710,43 @@ auto fit_2d_segments_cont(Timestamps ts, Points2d xs, Splits splits) {
 		if(dur == 0) dur = 1.0;
 		auto w = (t - sts)/dur;
 		auto m = 1 - w;
-		Point Mmw1((m*w).sum());
-		Point Mmm1((m*m).sum());
+		Mmw1 = (m*w).sum();
+		Mmm1 = (m*m).sum();
 		//std::cout << "Vec " << std::endl << (x.colwise()*m).transpose() << std::endl;
 		//std::cout << "Sum " << (x.colwise()*m).colwise().sum() << std::endl;
 		Point Mxm1((x.colwise()*m).colwise().sum());
 		
-		Point p0 = Mmw0;
-		Point p1 = Mmm1 + Mww0;
-		Point p2 = Mmw1;
+		p0 = Mmw0;
+		p1 = Mmm1 + Mww0;
+		p2 = Mmw1;
 		Point y = Mxm1 + Mxw0;
 		solver.add_row(p0, p1, p2, y);
 		//std::cout << double(p0(0,0)) << " " << double(p1(0,0)) << " " << double(p2(0,0)) << " " << double(y(0,0)) << std::endl;
 		//std::cout << "Ys " << y.transpose() << std::endl;
 		
 		Mmw0 = Mmw1;
-		Mmm0 = Mmm1;
+		//Mmm0 = Mmm1;
 		Mxm0 = Mxm1;
-		Mww0.setConstant((w*w).sum());
+		Mww0 = (w*w).sum();
 		Mxw0 = (x.colwise()*w).colwise().sum();
 	}
 
-	Point p0 = Mmw0;
-	Point p1 = Mww0;
-	Point p2(0.0);
-	Point y = Mxw0;
+	p0 = Mmw0;
+	p1 = Mww0;
+	p2 = 0.0;
+	y = Mxw0;
 	solver.add_row(p0, p1, p2, y);
 	//std::cout << double(p0(0,0)) << " " << double(p1(0,0)) << " " << double(p2(0,0)) << " " << double(y(0,0)) << std::endl;
 	auto point_list = solver.solve();
 	// Feeling lazy
 	std::vector<Segment<Point>> segments;
 	std::vector<Point> points(point_list.begin(), point_list.end());
-	for(size_t j = 0; j < points.size() - 1; ++j) {
+	size_t last_idx = ts.rows() - 1;
+	for(size_t j = 0; j < n_segments; ++j) {
 		auto i0 = splits[j];
-		auto i1 = std::min(splits[j+1], size_t(ts.rows()) - 1);
+		auto i1 = splits[j+1];
 		auto t0 = ts(i0, 0);
-		auto t1 = ts(i1, 0);
+		auto t1 = ts(std::min(i1, last_idx), 0);
 		auto r0 = points[j];
 		auto r1 = points[j+1];
 		
@@ -577,6 +761,13 @@ auto fit_2d_segments_cont(Timestamps ts, Points2d xs, Splits splits) {
 	return Segmentation<Segment<Point>>(ts, segments);
 }
 
+template <typename T>
+auto colstd(T xs) {
+	auto mean = xs.colwise().mean();
+	auto err = (xs.rowwise() - mean);
+	auto std = (err*err).colwise().mean().sqrt();
+	return std;
+}
 
 auto nslr2d(Timestamps ts, Points2d xs, Nslr2d& model) {
 	size_t n = ts.rows();
@@ -588,6 +779,8 @@ auto nslr2d(Timestamps ts, Points2d xs, Nslr2d& model) {
 		model.measurement(dt, x);
 	}
 	
+	
+	/*
 	std::vector<size_t> splits;
 	auto split = model.get_winner().splits.tail;
 	while(split) {
@@ -599,30 +792,106 @@ auto nslr2d(Timestamps ts, Points2d xs, Nslr2d& model) {
 	std::reverse(splits.begin(), splits.end());
 	splits.push_back(ts.rows());
 	return fit_2d_linear_segments(ts, xs, splits);
+	*/
 	
-	/*
 	std::vector<size_t> splits;
 	auto split = model.get_winner().splits.tail;
 	while(split) {
 		auto next_split = split->value;
-		splits.push_back(next_split + 1);
 		splits.push_back(next_split);
 		split = split->parent;
 	}
 	splits.push_back(0);
 	std::reverse(splits.begin(), splits.end());
 	splits.push_back(ts.rows());
-	return fit_2d_segments_cont(ts, xs, splits);*/
+	return fit_2d_segments_cont(ts, xs, splits);
 }
 
-auto nslr2d(Timestamps ts, Points2d xs, Ref<const Nslr2d::Vector> noise, double penalty=5.0) {
+auto nslr2d(Timestamps ts, Points2d xs, Ref<const Nslr2d::Vector> noise, double penalty) {
 	Nslr2d model(noise, penalized_exponential_split(penalty));
 	return nslr2d(ts, xs, model);
 }
 
-auto nslr2d(Timestamps ts, Points2d xs, double noise, double penalty=5.0) {
+auto nslr2d(Timestamps ts, Points2d xs, Ref<const Nslr2d::Vector> noise) {
+	Nslr2d model(noise, gaze_split(noise.mean()));
+	return nslr2d(ts, xs, model);
+}
+
+auto nslr2d(Timestamps ts, Points2d xs, double noise) {
+	Nslr2d::Vector noise_vec(noise);
+	return nslr2d(ts, xs, noise_vec);
+}
+
+auto nslr2d(Timestamps ts, Points2d xs, double noise, double penalty) {
 	Nslr2d::Vector noise_vec;
 	noise_vec.setConstant(noise);
 	return nslr2d(ts, xs, noise_vec, penalty);
 }
 
+// Hash function for Eigen matrix and vector.
+// The code is from `hash_combine` function of the Boost library. See
+// http://www.boost.org/doc/libs/1_55_0/doc/html/hash/reference.html#boost.hash_combine .
+template<typename T>
+struct matrix_hash : std::unary_function<T, size_t> {
+  std::size_t operator()(T const& matrix) const {
+    // Note that it is oblivious to the storage order of Eigen matrix (column- or
+    // row-major). It will give you the same hash value for two different matrices if they
+    // are the transpose of each other in different storage order.
+    size_t seed = 0;
+    for (size_t i = 0; i < matrix.size(); ++i) {
+      auto elem = *(matrix.data() + i);
+      seed ^= std::hash<typename T::Scalar>()(elem) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    }
+    return seed;
+  }
+};
+
+
+
+//auto fit_gaze(Timestamps ts, Points2d xs, double minerr=0.5) {
+//
+//}
+
+auto nslr2d(Timestamps ts, Points2d xs, std::function<Nslr2d(Nslr2d::Vector)> getmodel, Nslr2d::Vector structural_error) {
+	Nslr2d::Vector nl = colstd(xs);
+	std::unordered_set<decltype(nl.matrix()), matrix_hash<decltype(nl.matrix())>> seen;
+	seen.insert(nl.matrix());
+	while(true) {
+		nl += structural_error;
+		auto model = getmodel(nl);
+		if(nl.prod() == 0) {
+			nl = nl.unaryExpr([](double a) -> double { return std::max(a, 1e-9); });
+			model = getmodel(nl);
+			return nslr2d(ts, xs, model);
+		}
+		auto fit = nslr2d(ts, xs, model);
+		auto error = fit(ts) - xs;
+		nl = colstd(error);
+		
+		if(seen.find(nl.matrix()) != seen.end()) {
+			return fit;
+		}
+		
+		seen.insert(nl.matrix());
+	}
+}
+
+auto fit_gaze(Timestamps ts, Points2d xs, Nslr2d::Vector structural_error, bool optimize_noise=true) {
+	if(!optimize_noise) {
+		Nslr2d model(structural_error, gaze_split(structural_error.mean()));
+		return nslr2d(ts, xs, model);
+	}
+	auto getmodel = [&](auto nl) {
+		return Nslr2d(nl, gaze_split(nl.mean()));
+	};
+	return nslr2d(ts, xs, getmodel, structural_error);
+}
+
+auto fit_gaze(Timestamps ts, Points2d xs, double structural_error=0.1, bool optimize_noise=true) {
+	Nslr2d::Vector se(structural_error);
+	return fit_gaze(ts, xs, se, optimize_noise);
+}
+
+/*auto fit_gaze(Timestamps ts, Points2d xs, double structural_error=0.5, bool optimize_noise=true) {
+	return fit_gaze(ts, xs, structural_error, optimize_noise);
+}*/

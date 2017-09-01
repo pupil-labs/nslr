@@ -1,7 +1,9 @@
 import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
-from pynslr import nslr2d
+import cppimport
+pynslr = cppimport.imp('pynslr')
+from pynslr import fit_gaze
 
 
 # Create some kind of nasty signal
@@ -20,8 +22,14 @@ plt.plot(ts, signal[:,0], '.')
 
 
 # Get the regression
-split_penalty = 4.0 # This is generally a good value for eye movement signals
-reconstruction = nslr2d(ts, signal, noise_level, split_penalty)
+# Estimates noise automatically.
+# If the noise estimate seems wrong, it can be specified
+# by calling fit_gaze(ts, signal, structural_error=my_noise_level, optimize_error=False).
+reconstruction = fit_gaze(ts, signal)
+
+# Check noise estimation accuracy
+est_noise = np.mean(np.std(reconstruction(ts) - signal, axis=0))
+plt.title("True noise %f, estimated noise %f"%(noise_level, est_noise,))
 
 # Plot the reconstruction
 plt.plot(ts, reconstruction(ts)[:,0])
