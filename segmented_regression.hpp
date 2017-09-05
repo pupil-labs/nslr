@@ -12,6 +12,10 @@
 #include <Eigen/StdVector>
 #include <cmath>
 
+#if !EIGEN_VERSION_AT_LEAST(3,3,0)
+#error "Needs eigen version of at least 3.3.0"
+#endif
+
 typedef unsigned int uint;
 using Eigen::Array;
 using Eigen::Map;
