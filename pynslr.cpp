@@ -1,3 +1,5 @@
+// Copyleft 2017 Jami Pekkanen <jami.pekkanen@gmail.com>.
+// Released under GNU AGPL-3.0, see LICENSE.
 /*
 <%
 cfg['include_dirs'] = [

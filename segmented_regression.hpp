@@ -1,3 +1,5 @@
+// Copyleft 2017 Jami Pekkanen <jami.pekkanen@gmail.com>.
+// Released under AGPL-3.0, see LICENSE.
 #include <vector>
 #include <unordered_set>
 #include <list>
