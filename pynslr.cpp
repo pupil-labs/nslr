@@ -20,7 +20,6 @@ cfg['compiler_args'] = ['-std=c++14', '-g', '-Ofast', '-UNDEBUG', '-Wno-misleadi
 namespace py = pybind11;
 typedef Segment<Nslr2d::Vector> Segment2d;
 typedef Segmentation<Segment2d> Segmentation2d;
-typedef HackSegmentation<Segment2d> HackSegmentation2d;
 PYBIND11_PLUGIN(pynslr) {
 	using namespace pybind11::literals;
 	pybind11::module m("pynslr", "Python NSLR");
@@ -38,12 +37,6 @@ PYBIND11_PLUGIN(pynslr) {
 		.def_readwrite("segments", &Segmentation2d::segments)
 		.def("__call__", py::overload_cast<double>(&Segmentation2d::operator()))
 		.def("__call__", py::overload_cast<Timestamps>(&Segmentation2d::operator()));
-	pybind11::class_<HackSegmentation2d>(m, "HackSegmentation2d")
-		.def_readwrite("t", &HackSegmentation2d::t)
-		.def_readwrite("x", &HackSegmentation2d::x)
-		.def_readwrite("segments", &HackSegmentation2d::segments)
-		.def("__call__", py::overload_cast<double>(&HackSegmentation2d::operator()))
-		.def("__call__", py::overload_cast<Timestamps>(&HackSegmentation2d::operator()));
 	m.def("nslr2d", py::overload_cast<Timestamps, Points2d, Ref<const Nslr2d::Vector>>(&nslr2d),
 			"ts"_a, "xs"_a, "noise"_a);
 	m.def("nslr2d", py::overload_cast<Timestamps, Points2d, double>(&nslr2d),

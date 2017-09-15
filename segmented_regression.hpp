@@ -459,10 +459,7 @@ struct Nslr {
 
 
 
-/*struct Nslr {
-	
-}*/
-
+typedef Nslr<1u> Nslr1d;
 typedef Nslr<2u> Nslr2d;
 typedef Ref<const Array<double, -1, 1>> Timestamps;
 typedef Ref<const Array<double, -1, 2>> Points2d;
@@ -476,87 +473,11 @@ struct Segment {
 	std::tuple<Vector, Vector> x;
 };
 
-template <class Segment>
-struct HackSegmentation {
-	using Vector = typename Segment::Vector;
-	using Vectors = Array<double, -1, Vector::RowsAtCompileTime>;
-	//static auto g = std::get;
-	std::vector<Segment> segments;
-	std::vector<double> t;
-	std::vector<Vector> x;
-	HackSegmentation(Timestamps ts, std::vector<Segment> segments) :segments(segments) {
-		std::list<std::tuple<double, Vector, size_t>> points;
-		auto& s = segments[0];
-		points.emplace_back(std::get<0>(s.t), std::get<0>(s.x), std::get<1>(s.i) - std::get<0>(s.i));
-		for(auto& s : segments) {
-			auto t0 = std::get<0>(s.t);
-			auto t1 = std::get<1>(s.t);
-			auto x0 = std::get<0>(s.x);
-			auto x1 = std::get<1>(s.x);
-			auto i0 = std::get<0>(s.i);
-			auto i1 = std::get<1>(s.i);
-
-			auto dur = t1 - t0;
-			auto n = i1 - i0;
-			auto f = [&](auto t) {
-				auto w = (t - t0)/dur;
-				return w*x1 + (1.0 - w)*x0;
-			};
-			
-			// TODO: The points get put wrong way around!?
-			auto& pp = points.back();
-			auto px = std::get<1>(pp);
-			auto pn = std::get<2>(pp);
-			// Should be MLE-estimate using the segment regressions,
-			// but a weighted average'll do for now.
-			std::get<1>(pp) = (px*(pn - 2 + 1e-6) + std::get<0>(s.x)*(n - 2 + 1e-6))/(pn + n - 4 + 2e-6);
-			std::get<2>(pp) += n;
-
-			if(n > 2) {
-				auto nt = ts(i0 + 1, 0);
-				points.emplace_back(nt, f(nt), n);
-			}
-			if(n > 3) {
-				auto nt = ts(i1 - 2, 0);
-				points.emplace_back(nt, f(nt), n);
-
-			}
-
-			points.emplace_back(t1, x1, n);
-		}
-		
-		for(auto& p : points) {
-			t.push_back(std::get<0>(p));
-			x.push_back(std::get<1>(p));
-		}
-	}
-
-	Vector operator()(double nt) {
-		auto idx = std::distance(t.begin(), std::lower_bound(t.begin(), t.end(), nt)) - 1;
-		idx = std::min(idx, decltype(idx)(t.size() - 2));
-		idx = std::max(idx, decltype(idx)(0));
-		auto t0 = t[idx];
-		auto t1 = t[idx+1];
-		auto x0 = x[idx];
-		auto x1 = x[idx+1];
-		auto w = (nt - t0)/(t1 - t0);
-		return x1*w + x0*(1.0 - w);
-	}
-	
-	Vectors operator()(Timestamps nts) {
-		Vectors out(nts.rows(), decltype(nts.rows())(Vectors::ColsAtCompileTime));
-		for(size_t i=0; i < nts.rows(); ++i) {
-			out.row(i) = (*this)(nts(i, 0)).transpose();
-		}
-		return out;
-	}
-};
 
 template <class Segment>
 struct Segmentation {
 	using Vector = typename Segment::Vector;
 	using Vectors = Array<double, -1, Vector::RowsAtCompileTime>;
-	//static auto g = std::get;
 	std::vector<Segment> segments;
 	std::vector<double> t;
 	std::vector<Vector> x;
@@ -592,64 +513,6 @@ struct Segmentation {
 };
 
 
-auto fit_2d_linear_segments(Timestamps ts, Points2d xs, Splits splits) {
-	//Array<double, -1, 1> sts(n_segments*2);
-	//Array<double, -1, 2> sxs(n_segments*2, 2);
-	std::vector<Segment<Nslr2d::Vector>> segments;
-	auto n = ts.rows();
-
-	auto add_segment = [&](auto i, auto start, auto end) {
-		// end is inclusive, except in the very end
-		if(end < n) {
-			end += 1;
-		}
-		auto len = end - start;
-		auto ets = ts(end - 1, 0);
-		auto t = ts.block(start, 0, len, 1);
-		auto x = xs.block(start, 0, len, 2);
-		
-		auto tmean = t.colwise().mean();
-		auto xmean = x.colwise().mean();
-		auto tcent = t.rowwise() - tmean;
-		auto xcent = x.rowwise() - xmean;
-		auto tss = (tcent*tcent).colwise().mean();
-		
-		Array<double, -1, 2> cos = xcent;
-
-		// Can't get eigen to broadcast :(
-		cos.col(0) *= tcent;
-		cos.col(1) *= tcent;
-		auto coss = cos.colwise().mean();
-		auto slope = coss/tss(0, 0);
-		auto intercept = xmean - slope*tmean(0, 0);
-
-		/*sts.row(i*2) = t.row(0);
-		sxs.row(i*2) = slope*t(0, 0) + intercept;
-		
-		sts.row(i*2+1) = ets;
-		sxs.row(i*2+1) = slope*ets + intercept;*/
-		Segment<Nslr2d::Vector> segment = {
-			.i=std::make_tuple(start, end),
-			.t=std::make_tuple(t(0,0), ets),
-			.x=std::make_tuple(
-				slope*t(0, 0) + intercept,
-				slope*ets + intercept
-			)
-		};
-		//Segment<Nslr2d::Vector> segment;
-		return segment;
-		//return segment;
-		//sts.push_back(ets);
-		//sxs.push_back(slope*ets + intercept);
-	};
-	
-	for(size_t i = 0; i < splits.size() - 1; ++i) {
-		segments.push_back(add_segment(i, splits[i], splits[i+1]));
-	}
-	return Segmentation<Segment<Nslr2d::Vector>>(ts, segments);
-	//return std::make_tuple(sts, sxs);
-
-}
 
 template<typename Tt, typename Tx>
 struct TridiagonalSolver {
@@ -697,7 +560,6 @@ auto fit_2d_segments_cont(Timestamps ts, Points2d xs, Splits splits) {
 	TridiagonalSolver<double, Array<double, 1, 2>> solver;
 	auto n_segments = splits.size() - 1;
 	double Mmw0=0.0, Mww0=0.0, Mmw1=0.0, Mmm1=0.0, p0=0.0, p1=0.0, p2=0.0;
-	//double Mmm0, Mww1 = 0.0;
 	Point Mxw0(0.0);
 	Point Mxm0(0.0);
 	Point y;
@@ -706,9 +568,7 @@ auto fit_2d_segments_cont(Timestamps ts, Points2d xs, Splits splits) {
 		auto start = splits[i];
 		auto end = splits[i+1];
 		auto len = end - start;
-		//std::cout << "Start " << start << " last " << end - 1 << " len " << ts.size() << std::endl;
 		double ets = ts(end - 1, 0);
-		//std::cout << "Got it" << std::endl;
 		double sts = ts(start, 0);
 		auto t = ts.block(start, 0, len, 1);
 		auto x = xs.block(start, 0, len, 2);
@@ -718,8 +578,6 @@ auto fit_2d_segments_cont(Timestamps ts, Points2d xs, Splits splits) {
 		auto m = 1 - w;
 		Mmw1 = (m*w).sum();
 		Mmm1 = (m*m).sum();
-		//std::cout << "Vec " << std::endl << (x.colwise()*m).transpose() << std::endl;
-		//std::cout << "Sum " << (x.colwise()*m).colwise().sum() << std::endl;
 		Point Mxm1((x.colwise()*m).colwise().sum());
 		
 		p0 = Mmw0;
@@ -727,11 +585,8 @@ auto fit_2d_segments_cont(Timestamps ts, Points2d xs, Splits splits) {
 		p2 = Mmw1;
 		Point y = Mxm1 + Mxw0;
 		solver.add_row(p0, p1, p2, y);
-		//std::cout << double(p0(0,0)) << " " << double(p1(0,0)) << " " << double(p2(0,0)) << " " << double(y(0,0)) << std::endl;
-		//std::cout << "Ys " << y.transpose() << std::endl;
 		
 		Mmw0 = Mmw1;
-		//Mmm0 = Mmm1;
 		Mxm0 = Mxm1;
 		Mww0 = (w*w).sum();
 		Mxw0 = (x.colwise()*w).colwise().sum();
@@ -742,7 +597,6 @@ auto fit_2d_segments_cont(Timestamps ts, Points2d xs, Splits splits) {
 	p2 = 0.0;
 	y = Mxw0;
 	solver.add_row(p0, p1, p2, y);
-	//std::cout << double(p0(0,0)) << " " << double(p1(0,0)) << " " << double(p2(0,0)) << " " << double(y(0,0)) << std::endl;
 	auto point_list = solver.solve();
 	// Feeling lazy
 	std::vector<Segment<Point>> segments;
@@ -784,21 +638,6 @@ auto nslr2d(Timestamps ts, Points2d xs, Nslr2d& model) {
 		Nslr2d::Vector x(xs.row(i));
 		model.measurement(dt, x);
 	}
-	
-	
-	/*
-	std::vector<size_t> splits;
-	auto split = model.get_winner().splits.tail;
-	while(split) {
-		auto next_split = split->value;
-		splits.push_back(next_split);
-		split = split->parent;
-	}
-	splits.push_back(0);
-	std::reverse(splits.begin(), splits.end());
-	splits.push_back(ts.rows());
-	return fit_2d_linear_segments(ts, xs, splits);
-	*/
 	
 	std::vector<size_t> splits;
 	auto split = model.get_winner().splits.tail;
@@ -852,11 +691,6 @@ struct matrix_hash : std::unary_function<T, size_t> {
   }
 };
 
-
-
-//auto fit_gaze(Timestamps ts, Points2d xs, double minerr=0.5) {
-//
-//}
 
 auto nslr2d(Timestamps ts, Points2d xs, std::function<Nslr2d(Nslr2d::Vector)> getmodel, Nslr2d::Vector structural_error) {
 	Nslr2d::Vector nl = colstd(xs);
