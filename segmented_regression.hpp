@@ -329,31 +329,12 @@ SplitLikelihood constant_penalty_split(double penalty) {
 	};
 }
 
-/*
-======================================================================================
-                         coef    std err          t      P>|t|      [0.025      0.975]
---------------------------------------------------------------------------------------
-Intercept             -2.8614      0.520     -5.504      0.000      -3.882      -1.841
-log(sampling_rate)    -1.0397      0.095    -10.953      0.000      -1.226      -0.853
-I(1 / noise_level)     0.4993      0.013     39.175      0.000       0.474       0.524
-log(max_distance)      0.5149      0.064      8.030      0.000       0.389       0.641
-log(max_speed)         0.1118      0.062      1.801      0.072      -0.010       0.234
-log(max_duration)     -0.9375      0.078    -11.962      0.000      -1.091      -0.784
-======================================================================================
-*/ 
 SplitLikelihood gaze_split(
 		double noise_std,
 		double saccade_amplitude=3.0,
 		double slow_phase_duration=0.3,
 		double slow_phase_speed=5.0) {
 	using std::log; using std::exp;
-	/*double pinc =
-		1.2*std::log(noise_std) +
-		-0.6*std::log(saccade_amplitude/2.0) +
-		1.0*std::log(slow_phase_duration/2.0) +
-		-0.15*std::log(slow_phase_speed/2.0) +
-		2.3;
-	*/
 	double logit_pinc = 
 		0.5*(1.0/noise_std) +
 		0.5*log(saccade_amplitude*2) +
@@ -363,7 +344,6 @@ SplitLikelihood gaze_split(
 	return [=](double dt) {
 		double lp = logit_pinc + -1.0*log(1/dt);
 		return log(1/(1 + exp(-lp)));
-		//return -(1.0*std::log(1/dt) + pinc);
 	};
 
 }
@@ -375,11 +355,9 @@ struct Nslr {
 	Vector noise_std;
 	Vector noise_prec;
 	SplitLikelihood _split_likelihood;
-	//double split_rate;
 	std::vector<Hypothesis, Eigen::aligned_allocator<Hypothesis>> hypotheses;
 	
 	double seg_normer; // An optimization to avoid taking logs in the loop
-	double split_compensation;
 	Vector resid_normer;
 
 	uint i = 0;
@@ -392,13 +370,10 @@ struct Nslr {
 	{
 		seg_normer = (1.0/(noise_std*std::sqrt(2*M_PI))).log().sum();
 		resid_normer = 1.0/(2*noise_std.pow(2));
-		
-		//split_compensation = (noise_std.pow(2)*resid_normer).sum() + seg_normer;
-		split_compensation = 0.0;
         }
 
 	auto split_likelihood(double dt) const {
-		return _split_likelihood(dt) - split_compensation;
+		return _split_likelihood(dt);
 	}
 	
 	void measurement(double dt, double *position) {
@@ -408,9 +383,6 @@ struct Nslr {
 
 	Hypothesis& get_winner() {
 		static const auto likcmp = [](const Hypothesis& a, const Hypothesis& b) {
-			//if(a.n < 2 && b.n < 2) return true; 
-			//if(a.n >= 2 && b.n < 2) return false; 
-			//if(a.n < 2 && b.n >= 2) return true; 
 			return a.likelihood() < b.likelihood();
 		};
 		
@@ -437,9 +409,7 @@ struct Nslr {
 		auto& winner = get_winner();
 		hypotheses.emplace_back(this, winner, dt, i);
 		auto& new_hypo = hypotheses.back();
-		//new_hypo.measurement(dt, measurement);
 		Vector pred = winner.predict(winner.t);
-		//new_hypo.measurement(0.0, pred, 1e6);
 		auto worst_survivor = new_hypo.likelihood();
 		
 		const auto no_chance = [&](const Hypothesis& hypo) {
@@ -517,23 +487,14 @@ struct Segmentation {
 template<typename Tt, typename Tx>
 struct TridiagonalSolver {
 	std::list<std::tuple<Tx, Tt>> BG;
-	//B;
-	//std::list<T> G;
 
 	TridiagonalSolver() {
 		BG.emplace_back(0.0, 0.0);
 	}
 
 	void add_row(Tt t0, Tt t1, Tt t2, Tx x) {
-		/*std::cout
-			<< t1 << '\t'
-			<< t1 << '\t'
-			<< t2
-			<< std::endl;*/
 		Tx b; Tt g;
 		std::tie(b, g) = BG.back();
-		//auto b = B.back();
-		//auto g = G.back();
 		auto denom = t0*g + t1;
 		BG.emplace_back((x - t0*b)/denom, -t2/denom);
 	}
@@ -732,6 +693,3 @@ auto fit_gaze(Timestamps ts, Points2d xs, double structural_error=0.1, bool opti
 	return fit_gaze(ts, xs, se, optimize_noise);
 }
 
-/*auto fit_gaze(Timestamps ts, Points2d xs, double structural_error=0.5, bool optimize_noise=true) {
-	return fit_gaze(ts, xs, structural_error, optimize_noise);
-}*/
