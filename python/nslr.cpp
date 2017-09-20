@@ -5,14 +5,14 @@
 cfg['include_dirs'] = [
 	'/usr/include/eigen3'
 	]
-cfg['dependencies'] = ['segmented_regression.hpp']
+cfg['dependencies'] = ['../segmented_regression.hpp']
 setup_pybind11(cfg)
 cfg['compiler_args'] = ['-std=c++14', '-g', '-Ofast', '-UNDEBUG', '-Wno-misleading-indentation']
 #cfg['compiler_args'] = ['-std=c++14', '-g', '-O0', '-UDEBUG', '-Wno-misleading-indentation']
 %>
 */
 
-#include "segmented_regression.hpp"
+#include "../segmented_regression.hpp"
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
 #include <pybind11/functional.h>
@@ -20,9 +20,9 @@ cfg['compiler_args'] = ['-std=c++14', '-g', '-Ofast', '-UNDEBUG', '-Wno-misleadi
 namespace py = pybind11;
 typedef Segment<Nslr2d::Vector> Segment2d;
 typedef Segmentation<Segment2d> Segmentation2d;
-PYBIND11_PLUGIN(pynslr) {
+PYBIND11_PLUGIN(nslr) {
 	using namespace pybind11::literals;
-	pybind11::module m("pynslr", "Python NSLR");
+	pybind11::module m("nslr", "Python NSLR");
 	pybind11::class_<Nslr2d>(m, "Nslr2d")
 		.def(py::init<Nslr2d::Vector, SplitLikelihood>())
 		.def("measurement", py::overload_cast<double, Ref<Nslr2d::Vector>>(&Nslr2d::measurement))

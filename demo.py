@@ -2,8 +2,9 @@ import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
 import cppimport
-pynslr = cppimport.imp('pynslr')
-from pynslr import fit_gaze
+from nslr import fit_gaze
+#pynslr = cppimport.imp('pynslr')
+#from pynslr import fit_gaze
 
 
 # Create some kind of nasty signal
