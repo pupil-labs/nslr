@@ -1,6 +1,6 @@
 environment:
   global:
-    CIBW_SKIP: "cp27-win* cp34-win*" # Uses too old compilers
+    CIBW_SKIP: "cp27-win* cp33-win* cp34-win*" # Uses too old compilers
 build_script:
   - pip install cibuildwheel==0.5.1
   - pip install -r requirements.txt
