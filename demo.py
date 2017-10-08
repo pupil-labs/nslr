@@ -1,8 +1,8 @@
 import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
-import cppimport
 from nslr import fit_gaze
+##import cppimport
 #pynslr = cppimport.imp('pynslr')
 #from pynslr import fit_gaze
 
