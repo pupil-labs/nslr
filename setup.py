@@ -13,21 +13,8 @@ except ImportError:
     from urllib import urlretrieve
 import zipfile
 
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 
-
-class get_pybind_include(object):
-    """Helper class to determine the pybind11 include path
-    The purpose of this class is to postpone importing pybind11
-    until it is actually installed, so that the ``get_include()``
-    method can be invoked. """
-
-    def __init__(self, user=False):
-        self.user = user
-
-    def __str__(self):
-        import pybind11
-        return pybind11.get_include(self.user)
 
 def download_eigen():
     zippath = os.path.join('deps', 'eigen.zip')
@@ -38,12 +25,27 @@ def download_eigen():
     f = zipfile.ZipFile(zippath)
     f.extractall('deps')
     return os.path.join('deps', "eigen-eigen-5a0156e40feb")
-
+    
 def get_eigen():
     if 'EIGEN3_INCLUDE_DIR' in os.environ:
         return os.environ['EIGEN3_INCUDE_DIR']
     return download_eigen()
+    
+def download_pybind():
+    zippath = os.path.join('deps', 'pybind.zip')
+    if not os.path.exists('deps'): os.mkdir('deps')
+    if not os.path.exists(zippath):
+        urlretrieve("https://github.com/pybind/pybind11/archive/v2.2.1.zip", zippath)
+    
+    f = zipfile.ZipFile(zippath)
+    f.extractall('deps')
+    return os.path.join('deps', "pybind11-2.2.1", "include")
 
+def get_pybind():
+    if 'PYBIND11_INCLUDE_DIR' in os.environ:
+        return os.environ['PYBIND11_INCUDE_DIR']
+    return download_pybind()
+ 
 # As of Python 3.6, CCompiler has a `has_flag` method.
 # cf http://bugs.python.org/issue26689
 def has_flag(compiler, flagname):
@@ -122,7 +124,7 @@ def try_setup(build_binary):
         url='https://gitlab.com/nslr/nslr',
         description='Naive Segmented Linear Regression',
         long_description='',
-        install_requires=['pybind11'],
+        install_requires=[],
         packages=['nslr'],
         zip_safe=False,
     platforms=['any'],
@@ -139,10 +141,10 @@ def try_setup(build_binary):
                 # EIGEN3_INCLUDE_DIR environment variable to
                 # set manually.
                 get_eigen(),
-                # These come from the pybind11 python package
-                # (eg. pip install pybind11)
-                get_pybind_include(),
-                get_pybind_include(user=True),
+		# Try to get pybind11 directory. Set
+                # PYBIND11_INCLUDE_DIR environment variable to
+                # set manually.
+		get_pybind(),
             ],
             language='c++'
         ),
