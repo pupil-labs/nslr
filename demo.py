@@ -16,13 +16,16 @@ signal = eyes + np.random.randn(*eyes.shape)*noise_level
 # Plot the signal and ground thruth
 plt.plot(ts, signal[:,0], '.')
 
-
+import time
+start = time.time()
 # Get the regression
 # Estimates noise automatically.
 # If the noise estimate seems wrong, it can be specified
 # by calling
-# reconstruction = fit_gaze(ts, signal, structural_error=noise_level, optimize_error=False).
+#reconstruction = fit_gaze(ts, signal, structural_error=noise_level, optimize_noise=False)
 reconstruction = fit_gaze(ts, signal)
+dur = time.time() - start
+print(len(ts)/dur, "samples per second")
 
 # Check noise estimation accuracy
 est_noise = np.mean(np.std(reconstruction(ts) - signal, axis=0))
