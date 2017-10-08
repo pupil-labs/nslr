@@ -13,7 +13,7 @@ except ImportError:
 	from urllib import urlretrieve
 import zipfile
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 
 
 class get_pybind_include(object):
@@ -137,7 +137,7 @@ def try_setup(build_binary):
         url='https://gitlab.com/nslr/nslr',
         description='Naive Segmented Linear Regression',
         long_description='',
-        install_requires=['numpy', 'scipy'],
+        install_requires=[],
         packages=['nslr'],
         zip_safe=False,
     )
