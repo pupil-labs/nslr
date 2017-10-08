@@ -8,12 +8,12 @@ from distutils.errors import CCompilerError, DistutilsExecError, \
     DistutilsPlatformError
 
 try:
-	from urllib.request import urlretrieve
+    from urllib.request import urlretrieve
 except ImportError:
-	from urllib import urlretrieve
+    from urllib import urlretrieve
 import zipfile
 
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 
 
 class get_pybind_include(object):
@@ -30,34 +30,19 @@ class get_pybind_include(object):
         return pybind11.get_include(self.user)
 
 def download_eigen():
-	zippath = os.path.join('deps', 'eigen.zip')
-	if not os.path.exists('deps'): os.mkdir('deps')
-	if not os.path.exists(zippath):
-		urlretrieve("http://bitbucket.org/eigen/eigen/get/3.3.4.zip", zippath)
-	
-	f = zipfile.ZipFile(zippath)
-	f.extractall('deps')
-	return os.path.join('deps', "eigen-eigen-5a0156e40feb")
-
-class DownloadEigen(setuptools.Command):
-	"""Download eigen headers"""
-	
-	# OMG how setuptools suck. This is
-	# Java-level horror
-	user_options = []
-	def initialize_options(self): pass
-	def finalize_options(self): pass
-	
-	def run(self):
-		return download_eigen()
+    zippath = os.path.join('deps', 'eigen.zip')
+    if not os.path.exists('deps'): os.mkdir('deps')
+    if not os.path.exists(zippath):
+        urlretrieve("http://bitbucket.org/eigen/eigen/get/3.3.4.zip", zippath)
+    
+    f = zipfile.ZipFile(zippath)
+    f.extractall('deps')
+    return os.path.join('deps', "eigen-eigen-5a0156e40feb")
 
 def get_eigen():
-	if 'EIGEN3_INCLUDE_DIR' in os.environ:
-		return os.environ['EIGEN3_INCUDE_DIR']
-	return download_eigen()
-
-
-
+    if 'EIGEN3_INCLUDE_DIR' in os.environ:
+        return os.environ['EIGEN3_INCUDE_DIR']
+    return download_eigen()
 
 # As of Python 3.6, CCompiler has a `has_flag` method.
 # cf http://bugs.python.org/issue26689
@@ -137,9 +122,10 @@ def try_setup(build_binary):
         url='https://gitlab.com/nslr/nslr',
         description='Naive Segmented Linear Regression',
         long_description='',
-        install_requires=[],
+        install_requires=['pybind11'],
         packages=['nslr'],
         zip_safe=False,
+    platforms=['any'],
     )
     if not build_binary:
         return setup(**params)
@@ -150,9 +136,9 @@ def try_setup(build_binary):
             ['nslr/cppnslr.cpp'],
             include_dirs=[
                 # Try to get eigen include directory. Set
-    	        # EIGEN3_INCLUDE_DIR environment variable to
-    	        # set manually.
-    	        get_eigen(),
+                # EIGEN3_INCLUDE_DIR environment variable to
+                # set manually.
+                get_eigen(),
                 # These come from the pybind11 python package
                 # (eg. pip install pybind11)
                 get_pybind_include(),
