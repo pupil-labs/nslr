@@ -20,9 +20,9 @@ cfg['compiler_args'] = ['-std=c++14', '-g', '-Ofast', '-UNDEBUG', '-Wno-misleadi
 namespace py = pybind11;
 typedef Segment<Nslr2d::Vector> Segment2d;
 typedef Segmentation<Segment2d> Segmentation2d;
-PYBIND11_PLUGIN(nslr) {
+PYBIND11_PLUGIN(cppnslr) {
 	using namespace pybind11::literals;
-	pybind11::module m("nslr", "Python NSLR");
+	pybind11::module m("cppnslr", "Python NSLR in C++");
 	pybind11::class_<Nslr2d>(m, "Nslr2d")
 		.def(py::init<Nslr2d::Vector, SplitLikelihood>())
 		.def("measurement", py::overload_cast<double, Ref<Nslr2d::Vector>>(&Nslr2d::measurement))

@@ -2,10 +2,6 @@ import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
 from nslr import fit_gaze
-##import cppimport
-#pynslr = cppimport.imp('pynslr')
-#from pynslr import fit_gaze
-
 
 # Create some kind of nasty signal
 # representing eye movements here
