@@ -584,7 +584,7 @@ template <typename T>
 auto colstd(T xs) {
 	auto mean = xs.colwise().mean();
 	auto err = (xs.rowwise() - mean);
-	auto std = (err*err).colwise().mean().sqrt();
+	auto std = (err*err).colwise().mean().sqrt().eval();
 	return std;
 }
 
@@ -652,7 +652,7 @@ struct matrix_hash : std::unary_function<T, size_t> {
 
 
 auto nslr2d(Timestamps ts, Points2d xs, std::function<Nslr2d(Nslr2d::Vector)> getmodel, Nslr2d::Vector structural_error) {
-	Nslr2d::Vector nl = colstd(xs);
+	auto nl = colstd(xs);
 	std::unordered_set<decltype(nl.matrix()), matrix_hash<decltype(nl.matrix())>> seen;
 	seen.insert(nl.matrix());
 	while(true) {
@@ -664,7 +664,7 @@ auto nslr2d(Timestamps ts, Points2d xs, std::function<Nslr2d(Nslr2d::Vector)> ge
 			return nslr2d(ts, xs, model);
 		}
 		auto fit = nslr2d(ts, xs, model);
-		auto error = fit(ts) - xs;
+		auto error = (fit(ts) - xs).eval();
 		nl = colstd(error);
 		
 		if(seen.find(nl.matrix()) != seen.end()) {

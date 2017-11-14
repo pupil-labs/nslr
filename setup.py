@@ -13,7 +13,7 @@ except ImportError:
     from urllib import urlretrieve
 import zipfile
 
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 
 
 def download_eigen():
