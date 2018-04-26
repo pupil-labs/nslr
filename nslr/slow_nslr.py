@@ -175,7 +175,7 @@ def fit_gaze(ts, xs, structural_error=0.1,
         optimize_noise=True,
         split_likelihood=gaze_split):
     std = np.std; mean = np.mean
-    structural_error = np.ones(2)*structural_error
+    structural_error = np.ones(xs[0].shape)*structural_error
     if not optimize_noise:
         return nslr(ts, xs, structural_error, gaze_split(mean(structural_error)))
 
