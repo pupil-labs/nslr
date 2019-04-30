@@ -10,7 +10,6 @@
 #include <iostream>
 #include <Eigen/Dense>
 #include <Eigen/StdVector>
-#include <cmath>
 
 #if !EIGEN_VERSION_AT_LEAST(3,3,0)
 #error "Needs eigen version of at least 3.3.0"
@@ -86,7 +85,7 @@ struct SharedList {
 		// leads to a stack overflow. And this is probably a lot faster
 		// anyway.
 		auto node = tail;
-		while(node and node->refcount == 0) {
+		while((node) && (node->refcount == 0)) {
 			auto killme = node;
 			node = node->parent;
 			delete killme;
@@ -570,9 +569,9 @@ auto fit_2d_segments_cont(Timestamps ts, Points2d xs, Splits splits) {
 		auto r1 = points[j+1];
 		
 		Segment<Point> segment = {
-			.i=std::make_tuple(i0, i1),
-			.t=std::make_tuple(t0, t1),
-			.x=std::make_tuple(r0, r1)
+			/*.i=*/std::make_tuple(i0, i1),
+			/*.t=*/std::make_tuple(t0, t1),
+			/*.x=*/std::make_tuple(r0, r1)
 		};
 		segments.push_back(segment);
 	}
