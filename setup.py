@@ -88,7 +88,7 @@ class BuildExt(build_ext):
     """A custom build extension for adding compiler-specific options."""
     defopts = []
     c_opts = {
-        'msvc': ['/EHsc'] + defopts,
+        'msvc': ['/EHsc', '/D_USE_MATH_DEFINES'] + defopts,
         'unix': defopts[:],
     }
 
