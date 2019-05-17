@@ -1,0 +1,8 @@
+deps/
+build/
+var/
+
+.vscode/
+nslr.egg-info/
+__pycache__/
+*.so

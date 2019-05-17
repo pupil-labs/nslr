@@ -650,10 +650,18 @@ struct matrix_hash : std::unary_function<T, size_t> {
 };
 
 
+template<typename T>
+struct matrix_equals : std::binary_function<T, T, bool> {
+	bool operator()(T const& lhs, T const& rhs) const {
+		return lhs.isApprox(rhs);
+	}
+};
+
+
 auto nslr2d(Timestamps ts, Points2d xs, std::function<Nslr2d(Nslr2d::Vector)> getmodel, Nslr2d::Vector structural_error) {
 	auto nl = colstd(xs);
-	std::unordered_set<decltype(nl.matrix()), matrix_hash<decltype(nl.matrix())>> seen;
-	seen.insert(nl.matrix());
+	std::vector<decltype(nl.matrix())> seen;
+	seen.push_back(nl.matrix());
 	while(true) {
 		nl += structural_error;
 		auto model = getmodel(nl);
@@ -666,11 +674,14 @@ auto nslr2d(Timestamps ts, Points2d xs, std::function<Nslr2d(Nslr2d::Vector)> ge
 		auto error = (fit(ts) - xs).eval();
 		nl = colstd(error);
 		
-		if(seen.find(nl.matrix()) != seen.end()) {
-			return fit;
+		for (auto &seen_matrix : seen)
+		{
+			if (seen_matrix.isApprox(nl.matrix())) {
+                return fit;
+            }
 		}
 		
-		seen.insert(nl.matrix());
+		seen.push_back(nl.matrix());
 	}
 }
 
