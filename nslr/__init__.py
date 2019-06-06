@@ -1,4 +1,5 @@
 try:
 	from .cppnslr import *
 except ImportError:
-	from .slow_nslr import *
+    print("Failed to import C++ NSLR.")
+    raise

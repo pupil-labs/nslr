@@ -161,5 +161,4 @@ try:
     try_setup(True)
 except BuildFailed:
     print("Failed to build C++ extension.")
-    print("Installing using much slower Python implementation")
-    try_setup(False)
+    raise
