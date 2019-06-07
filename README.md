@@ -14,6 +14,8 @@ a version in PyPI, but it installs only the pure-python version:
 
     pip install nslr
 
+**Note**: The cpp code is not compatible with gcc 5 (default for Ubuntu 14.04). We recommend using gcc 7 or higher.
+
 ## Usage
 
 Currently the only "supported" function is `nslr.fit_gaze`. For
