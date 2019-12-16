@@ -28,7 +28,7 @@ def download_eigen():
     
 def get_eigen():
     if 'EIGEN3_INCLUDE_DIR' in os.environ:
-        return os.environ['EIGEN3_INCUDE_DIR']
+        return os.environ['EIGEN3_INCLUDE_DIR']
     return download_eigen()
     
 def download_pybind():
@@ -43,7 +43,7 @@ def download_pybind():
 
 def get_pybind():
     if 'PYBIND11_INCLUDE_DIR' in os.environ:
-        return os.environ['PYBIND11_INCUDE_DIR']
+        return os.environ['PYBIND11_INCLUDE_DIR']
     return download_pybind()
  
 # As of Python 3.6, CCompiler has a `has_flag` method.
