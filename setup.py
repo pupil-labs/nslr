@@ -21,8 +21,8 @@ def download_eigen():
     zippath = os.path.join('deps', 'eigen.zip')
     if not os.path.exists('deps'): os.mkdir('deps')
     if not os.path.exists(zippath):
-        urllib.URLopener.version = 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.153 Safari/537.36 SE 2.X MetaSr 1.0'
-        urlretrieve("https://gitlab.com/libeigen/eigen/-/archive/3.3.4/eigen-3.3.4.zip", zippath)
+        req = urllib.request.Request("https://gitlab.com/libeigen/eigen/-/archive/3.3.4/eigen-3.3.4.zip", headers={"User-Agent": "Chrome"})
+        res = urllib.request.urlopen(req)
     
     f = zipfile.ZipFile(zippath)
     f.extractall('deps')
