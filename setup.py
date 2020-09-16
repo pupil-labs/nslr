@@ -3,6 +3,7 @@ from setuptools.command.build_ext import build_ext
 import sys
 import setuptools
 import os
+import urllib
 import subprocess
 from distutils.errors import CCompilerError, DistutilsExecError, \
     DistutilsPlatformError
