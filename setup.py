@@ -28,7 +28,7 @@ def download_eigen():
     
     f = zipfile.ZipFile(zippath)
     f.extractall('deps')
-    return os.path.join('deps', "eigen-eigen-5a0156e40feb")
+    return os.path.join('deps', "eigen-3.3.4")
     
 def get_eigen():
     if 'EIGEN3_INCLUDE_DIR' in os.environ:
