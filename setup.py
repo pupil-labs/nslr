@@ -6,6 +6,7 @@ import os
 import subprocess
 from distutils.errors import CCompilerError, DistutilsExecError, \
     DistutilsPlatformError
+import requests
 
 try:
     from urllib.request import urlretrieve
@@ -17,14 +18,19 @@ __version__ = '0.0.5'
 
 
 def download_eigen():
+    # Find sha here: https://gitlab.com/libeigen/eigen/-/releases
+    eigen_sha = "3dc3a0ea2d0773af4c0ffd7bbcb21c608e28fcef"  # 3.3.4
     zippath = os.path.join('deps', 'eigen.zip')
     if not os.path.exists('deps'): os.mkdir('deps')
     if not os.path.exists(zippath):
-        urlretrieve("http://bitbucket.org/eigen/eigen/get/3.3.4.zip", zippath)
-    
+        with requests.get("https://gitlab.com/api/v4/projects/15462818/repository/archive.zip?sha=" + eigen_sha, stream=True) as r:
+            r.raise_for_status()
+            with open(zippath, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
     f = zipfile.ZipFile(zippath)
     f.extractall('deps')
-    return os.path.join('deps', "eigen-eigen-5a0156e40feb")
+    return os.path.join('deps', "eigen-" + eigen_sha + "-" + eigen_sha)
     
 def get_eigen():
     if 'EIGEN3_INCLUDE_DIR' in os.environ:
