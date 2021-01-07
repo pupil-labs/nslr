@@ -3,6 +3,7 @@ from setuptools.command.build_ext import build_ext
 import sys
 import setuptools
 import os
+import urllib.request
 import subprocess
 from distutils.errors import CCompilerError, DistutilsExecError, \
     DistutilsPlatformError
@@ -20,15 +21,18 @@ def download_eigen():
     zippath = os.path.join('deps', 'eigen.zip')
     if not os.path.exists('deps'): os.mkdir('deps')
     if not os.path.exists(zippath):
-        urlretrieve("http://bitbucket.org/eigen/eigen/get/3.3.4.zip", zippath)
+        opener = urllib.request.build_opener()
+        opener.addheaders = [('User-agent', 'Chrome')]
+        urllib.request.install_opener(opener)
+        urllib.request.urlretrieve("https://gitlab.com/libeigen/eigen/-/archive/3.3.4/eigen-3.3.4.zip", zippath)
     
     f = zipfile.ZipFile(zippath)
     f.extractall('deps')
-    return os.path.join('deps', "eigen-eigen-5a0156e40feb")
+    return os.path.join('deps', "eigen-3.3.4")
     
 def get_eigen():
     if 'EIGEN3_INCLUDE_DIR' in os.environ:
-        return os.environ['EIGEN3_INCUDE_DIR']
+        return os.environ['EIGEN3_INCLUDE_DIR']
     return download_eigen()
     
 def download_pybind():
@@ -43,7 +47,7 @@ def download_pybind():
 
 def get_pybind():
     if 'PYBIND11_INCLUDE_DIR' in os.environ:
-        return os.environ['PYBIND11_INCUDE_DIR']
+        return os.environ['PYBIND11_INCLUDE_DIR']
     return download_pybind()
  
 # As of Python 3.6, CCompiler has a `has_flag` method.
